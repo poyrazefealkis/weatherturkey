@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aura – Hava Durumu</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+body{font-family:-apple-system,"SF Pro Display","Segoe UI",Roboto,sans-serif;color:#fff;background:#0b1026;overflow-x:hidden}
+#bg,#fx{position:fixed;inset:0;z-index:-2}#fx{z-index:-1;pointer-events:none}
+.orb{position:fixed;z-index:-1;border-radius:50%;filter:blur(90px);opacity:.3;animation:dr 18s ease-in-out infinite alternate;pointer-events:none}
+@keyframes dr{to{transform:translate(8vw,6vh) scale(1.2)}}
+.glass{background:linear-gradient(145deg,rgba(255,255,255,.2),rgba(255,255,255,.05));backdrop-filter:blur(40px) saturate(170%);-webkit-backdrop-filter:blur(40px) saturate(170%);border:1px solid rgba(255,255,255,.25);box-shadow:0 8px 32px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.4);border-radius:32px;transition:transform .35s,box-shadow .35s,border-color .35s}
+.glass:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.55);box-shadow:0 18px 48px rgba(0,0,0,.3),0 0 30px rgba(255,255,255,.15),inset 0 1px 0 rgba(255,255,255,.5)}
+.nh:hover{transform:none}
+.rise{animation:ri .85s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i,0)*80ms)}
+@keyframes ri{from{opacity:0;transform:translateY(34px)}}
+.float{display:inline-block;animation:fl 5s ease-in-out infinite;filter:drop-shadow(0 18px 24px rgba(0,0,0,.35)) drop-shadow(0 0 40px rgba(255,255,255,.35))}
+@keyframes fl{50%{transform:translateY(-14px) rotate(4deg) scale(1.04)}}
+.lbl{font-size:.85rem;font-weight:600;opacity:.75}
+.btn{padding:.55rem 1rem;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(14px);cursor:pointer;font-size:.9rem;transition:all .25s}
+.btn:hover{background:rgba(255,255,255,.3);transform:scale(1.05)}.btn:active{transform:scale(.95)}.btn.on{background:#fff;color:#111}
+:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.bar{position:relative;height:8px;border-radius:9px;margin-top:14px;background:linear-gradient(90deg,#4ade80,#facc15,#fb923c,#ef4444,#a855f7)}
+.bar.q{background:linear-gradient(90deg,#4ade80 16.7%,#facc15 0 33.3%,#fb923c 0 50%,#ef4444 0 66.7%,#a855f7 0)}
+.bar i{position:absolute;top:50%;left:0;width:16px;height:16px;margin:-8px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(0,0,0,.25),0 2px 10px rgba(0,0,0,.5);transition:left 1.3s cubic-bezier(.2,.8,.2,1)}
+.pin{position:relative;width:34px;height:34px}.pin i{position:absolute;inset:9px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(124,196,250,.65),0 0 22px #7cc4fa}
+.pin::after{content:"";position:absolute;inset:9px;border-radius:50%;border:2px solid #7cc4fa;animation:pu 2s infinite}@keyframes pu{to{transform:scale(3.4);opacity:0}}
+.tp{width:44px;height:26px;display:grid;place-items:center;border-radius:13px;font:600 12px sans-serif;color:#fff;background:rgba(15,20,35,.75);border:1.5px solid}
+.tt{background:rgba(15,20,35,.85)!important;color:#fff!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:12px!important;font-weight:600}.tt:before{display:none}
+.leaflet-container{background:#0b0f1a;font-family:inherit}.leaflet-control-attribution{background:rgba(0,0,0,.45)!important;color:#bbb!important}.leaflet-control-attribution a{color:#9cf!important}
+.hs{scrollbar-width:none}.hs::-webkit-scrollbar{display:none}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="bg"></div>
+<div class="orb" style="width:40vw;height:40vw;left:-10vw;top:8vh;background:#7cc4fa"></div>
+<div class="orb" style="width:34vw;height:34vw;right:-8vw;top:48vh;background:#c084fc;animation-delay:-9s"></div>
+<canvas id="fx"></canvas>
+<main class="max-w-6xl mx-auto p-4 md:p-8 space-y-5">
+ <header class="rise flex flex-wrap gap-3 items-center" style="--i:0">
+  <input id="q" placeholder="🔍 Şehir ara, Enter’a bas" class="glass flex-1 min-w-[220px] px-6 py-3.5 outline-none placeholder-white/60" style="border-radius:999px">
+  <button id="gps" class="btn">📍 Konumum</button><button id="tts" class="btn">🔊 Havadaki durumu sesli özetle</button><button id="fav" class="btn">☆ Favori</button>
+ </header>
+ <div id="favs" class="rise flex flex-wrap gap-2 min-h-[2.4rem]" style="--i:1"></div>
+ <section class="glass rise p-7 md:p-10 grid md:grid-cols-2 items-center gap-4" style="--i:2">
+  <div>
+   <div class="text-2xl md:text-3xl font-semibold"><span id="city">Yükleniyor…</span><span id="demo" hidden class="ml-3 text-xs px-2 py-0.5 rounded-full bg-amber-400/30 border border-amber-300/50 align-middle">Demo</span></div>
+   <div id="date" class="opacity-70 text-sm mt-1"></div>
+   <div class="flex items-start mt-1"><span id="temp" class="text-[7rem] md:text-[10.5rem] leading-none font-extralight tracking-tighter">--</span><span class="text-5xl md:text-6xl font-extralight mt-3">°</span></div>
+   <div id="cond" class="text-2xl font-medium mb-3"></div>
+   <div class="flex flex-wrap gap-2 text-sm"><span class="btn !cursor-default">Hissedilen <b id="feelh">--</b>°</span><span class="btn !cursor-default">▲ <b id="hi">--</b>°</span><span class="btn !cursor-default">▼ <b id="lo">--</b>°</span></div>
+  </div>
+  <div class="text-center"><span id="ico" class="float text-[8rem] md:text-[12rem] leading-none">⛅</span></div>
+ </section>
+ <section class="grid lg:grid-cols-5 gap-5">
+  <div class="lg:col-span-3 space-y-5">
+   <div class="glass rise p-5 nh" style="--i:3"><div class="lbl mb-3">⏱️ Saatlik tahmin, yana kaydır</div><div id="hr" class="hs flex gap-3 overflow-x-auto snap-x pb-1"></div></div>
+   <div class="glass rise p-5 nh" style="--i:4"><div class="lbl mb-3">📈 Sıcaklık eğrisi, sonraki 24 saat</div><div class="h-56"><canvas id="ch"></canvas></div></div>
+  </div>
+  <div class="glass rise p-5 lg:col-span-2 nh" style="--i:5"><div class="lbl mb-4">📅 7 günlük tahmin</div><div id="dl" class="space-y-3.5"></div></div>
+ </section>
+ <section class="grid grid-cols-2 md:grid-cols-4 gap-5">
+  <div class="glass rise p-5 col-span-2" style="--i:6"><div class="lbl">🍃 Hava kalitesi (AQI)</div><div class="flex items-end gap-3 mt-2"><span id="aq" class="text-5xl font-light">--</span><span id="aqt" class="pb-1 font-medium"></span></div><div id="aqa" class="text-sm opacity-80 mt-1"></div><div class="bar q"><i id="aqm"></i></div></div>
+  <div class="glass rise p-5 col-span-2" style="--i:7"><div class="lbl">☀️ UV indeksi</div><div class="flex items-end gap-3 mt-2"><span id="uv" class="text-5xl font-light">--</span><span id="uvt" class="pb-1 font-medium"></span></div><div id="uva" class="text-sm opacity-80 mt-1"></div><div class="bar"><i id="uvm"></i></div></div>
+  <div class="glass rise p-5 col-span-2" style="--i:8"><div class="lbl">🧭 Rüzgar ve fırtına</div><div class="flex items-center justify-between gap-3 mt-2"><div><div class="text-4xl font-light"><span id="wsp">--</span><small class="text-sm opacity-70"> km/s</small></div><div class="text-sm opacity-80 mt-1">Hamle <b id="gst">--</b> km/s</div><div id="wdr" class="text-sm opacity-80"></div><div id="wst" class="text-sm font-medium mt-1"></div></div>
+   <div class="relative w-24 h-24 rounded-full border border-white/30 shrink-0" style="box-shadow:inset 0 0 18px rgba(255,255,255,.12)"><b class="absolute top-1 left-1/2 -translate-x-1/2 text-[10px]">K</b><b class="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] opacity-60">G</b><b class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] opacity-60">D</b><b class="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] opacity-60">B</b>
+    <div id="nd" class="absolute inset-0" style="transition:transform 1.4s cubic-bezier(.3,1.4,.5,1)"><div class="mx-auto w-1.5 h-10 mt-3 rounded bg-gradient-to-b from-rose-400 to-white/80"></div></div><i class="absolute w-2.5 h-2.5 rounded-full bg-white left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"></i></div></div></div>
+  <div class="glass rise p-5 col-span-2" style="--i:9"><div class="lbl">🌅 Güneş ve Ay döngüsü</div>
+   <svg viewBox="0 0 200 112" class="w-full max-w-[250px] mx-auto mt-1"><line x1="0" y1="100" x2="200" y2="100" stroke="rgba(255,255,255,.25)"/><path d="M10 100A90 90 0 0 1 190 100" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="6" stroke-linecap="round"/><path id="arc" d="M10 100A90 90 0 0 1 190 100" fill="none" stroke="#fbbf24" stroke-width="6" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" style="transition:stroke-dasharray 1.4s"/><circle id="sun" cx="10" cy="100" r="9" fill="#fde68a" style="filter:drop-shadow(0 0 8px #fbbf24)"/></svg>
+   <div class="flex justify-between text-sm mt-1"><span>🌅 <b id="sr">--</b></span><span id="moon" class="opacity-80"></span><span>🌇 <b id="ss">--</b></span></div></div>
+ </section>
+ <section id="sm" class="grid grid-cols-2 md:grid-cols-5 gap-5"></section>
+ <section class="glass rise p-4 nh" style="--i:15"><div class="flex flex-wrap items-center justify-between gap-3 px-2 pb-3"><div class="lbl">🗺️ Canlı radar, haritaya tıklayarak konum seç</div><input id="key" type="password" placeholder="812659a6adbec8523dd88a32b25d1bbc" class="btn !py-1.5 text-xs w-60 outline-none placeholder-white/60"></div>
+  <div class="relative"><div id="map" class="h-[460px] rounded-3xl overflow-hidden"></div><canvas id="wc" class="absolute inset-0 w-full h-full pointer-events-none rounded-3xl" style="z-index:500"></canvas>
+   <div class="absolute top-3 left-3 flex flex-wrap gap-2" style="z-index:1000"><button id="bt" class="btn on">🌡️ Sıcaklık</button><button id="br" class="btn">🌧️ Yağış yoğunluğu</button><button id="bw" class="btn">💨 Rüzgar akışı</button></div></div></section>
+ <footer class="text-center text-xs opacity-50 pb-6">Veri: Open-Meteo, RainViewer, OpenStreetMap ve CARTO</footer>
+</main>
+<div id="toast" class="glass fixed left-1/2 bottom-6 -translate-x-1/2 px-5 py-3 text-sm pointer-events-none z-[2000]" style="opacity:0;border-radius:999px;transition:opacity .4s"></div>
+<script>
+document.getElementById('sm').innerHTML=[['hum','💧','Nem'],['feel','🌡️','Hissedilen'],['vis','👁️','Görüş mesafesi'],['prs','⏲️','Basınç'],['dew','💦','Çiy noktası']].map(([k,i,t],n)=>`<div class="glass rise p-5 ${n==4?'col-span-2 md:col-span-1':''}" style="--i:${n+10}"><div class="lbl">${i} ${t}</div><div id="${k}" class="text-3xl font-light mt-2">--</div><div id="${k}t" class="text-xs opacity-75 mt-1"></div></div>`).join('');
+const E={};document.querySelectorAll('[id]').forEach(e=>E[e.id]=e);
+const J=u=>fetch(u).then(r=>{if(!r.ok)throw 0;return r.json()}),
+esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';'),
+iso=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16),
+RM=matchMedia('(prefers-reduced-motion:reduce)').matches,
+KEY=()=>{try{return localStorage.getItem('aura_owm')||''}catch(e){return''}};
+let S,CH,M,MK,LG,RL,GR,ML='temp',FV=[],TT,RQ=0;
+try{FV=JSON.parse(localStorage.getItem('aura_fav')||'[]')}catch(e){}
+const sv=()=>{try{localStorage.setItem('aura_fav',JSON.stringify(FV))}catch(e){}};
+const toast=(m,ms=2600)=>{E.toast.textContent=m;E.toast.style.opacity=1;clearTimeout(TT);TT=setTimeout(()=>E.toast.style.opacity=0,ms)};
+const kind=c=>c<2?'clear':c<4?'cloud':c<50?'fog':c<70||(c>=80&&c<83)?'rain':c<80||c==85||c==86?'snow':'storm';
+const wxo=(c,d)=>{const k=kind(c);return{k,t:{clear:'Açık',cloud:c==2?'Parçalı Bulutlu':'Kapalı',fog:'Sisli',rain:c>=80?'Sağanak Yağış':c<58?'Çiseleyen Yağmur':'Yağmurlu',storm:'Gök Gürültülü Fırtına',snow:'Karlı'}[k],i:{clear:d?'☀️':'🌙',cloud:d&&c==2?'⛅':'☁️',fog:'🌫️',rain:'🌧️',storm:'⛈️',snow:'❄️'}[k]}};
+const TH={
+clearD:['radial-gradient(circle at 82% 8%,rgba(255,236,160,.75),transparent 38%),linear-gradient(160deg,#1e78e6,#6cc0ff 70%,#bfe4ff)','none'],
+clearN:['radial-gradient(circle at 80% 12%,rgba(180,190,255,.28),transparent 30%),linear-gradient(160deg,#070b1e,#1b2160 80%,#3a2f78)','stars'],
+cloudD:['linear-gradient(160deg,#4f6d93,#8fa9c6 70%,#c3d2e0)','none'],
+cloudN:['linear-gradient(160deg,#0d1220,#262f48 80%,#3e4a66)','none'],
+fogD:['linear-gradient(160deg,#78838e,#aab3bb 70%,#d3d8dc)','none'],
+fogN:['linear-gradient(160deg,#1a1f25,#3a424b 80%,#59626c)','none'],
+rainD:['linear-gradient(160deg,#2f3f57,#566c88 70%,#8499b1)','rain'],
+rainN:['linear-gradient(160deg,#080d16,#1b2838 80%,#2f4258)','rain'],
+stormD:['linear-gradient(160deg,#1c1830,#40355f 70%,#6b5d8f)','storm'],
+stormN:['linear-gradient(160deg,#0a0716,#241c3d 80%,#3d2f5e)','storm'],
+snowD:['linear-gradient(160deg,#7a90a8,#b4c9dc 70%,#e4eef6)','snow'],
+snowN:['linear-gradient(160deg,#121b2c,#34486a 80%,#5c7597)','snow']};
+const setBg=g=>{const d=document.createElement('div');d.style.cssText=`position:absolute;inset:0;background:${g};opacity:0;transition:opacity 1.4s`;E.bg.append(d);requestAnimationFrame(()=>requestAnimationFrame(()=>{d.style.opacity=1;setTimeout(()=>{while(E.bg.children.length>1)E.bg.firstChild.remove()},1500)}))};
+
+/* Atmosfer */
+const cv=E.fx,cx=cv.getContext('2d');let P=[],FM='none',FL=0;
+const rs=()=>{cv.width=innerWidth;cv.height=innerHeight;if(M)rsM()};addEventListener('resize',rs);rs();
+const seed=m=>{FM=RM?'none':m;P=Array.from({length:{rain:200,storm:300,snow:150,stars:130}[FM]||0},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,s:Math.random(),t:Math.random()*9}))};
+(function lp(t){cx.clearRect(0,0,cv.width,cv.height);
+ for(const p of P){
+  if(FM=='rain'||FM=='storm'){cx.strokeStyle=`rgba(200,220,255,${.2+p.s*.4})`;cx.lineWidth=1+p.s;cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(p.x-2,p.y+10+p.s*14);cx.stroke();p.y+=15+p.s*14;p.x-=1.2;if(p.y>cv.height){p.y=-30;p.x=Math.random()*cv.width}}
+  else if(FM=='snow'){cx.fillStyle=`rgba(255,255,255,${.45+p.s*.5})`;cx.beginPath();cx.arc(p.x,p.y,1.5+p.s*3,0,7);cx.fill();p.y+=.6+p.s*1.6;p.x+=Math.sin(t/900+p.t)*.7;if(p.y>cv.height){p.y=-10;p.x=Math.random()*cv.width}}
+  else{cx.fillStyle=`rgba(255,255,255,${.25+.75*Math.abs(Math.sin(t/1300+p.t))})`;cx.fillRect(p.x,p.y*.75,1+p.s*1.6,1+p.s*1.6)}
+ }
+ if(FM=='storm'&&Math.random()<.005)FL=1;
+ if(FL>0){cx.fillStyle=`rgba(220,230,255,${FL*.4})`;cx.fillRect(0,0,cv.width,cv.height);FL-=.05}
+ requestAnimationFrame(lp)})(0);
+
+/* Demo veri: API yoksa aynı yapıda simülasyon */
+function mock(n,lat,lon){
+ const s=[...String(n||lat+','+lon)].reduce((a,c)=>(a*31+c.charCodeAt(0))%997,7)/997,now=new Date(),h=now.getHours(),base=6+s*22,D0=new Date(now);D0.setHours(0,0,0,0);
+ const H={time:[],temperature_2m:[],weather_code:[],precipitation_probability:[],visibility:[],uv_index:[],is_day:[]},Dd={time:[],weather_code:[],temperature_2m_max:[],temperature_2m_min:[],sunrise:[],sunset:[]};
+ for(let k=0;k<168;k++){const dt=new Date(D0.getTime()+k*36e5),hh=dt.getHours(),dy=Math.floor(k/24),code=[0,0,2,3,45,61,95,71][Math.floor(s*8+dy*1.7)%8];
+  H.time.push(iso(dt));H.temperature_2m.push(+(base+2*Math.sin(dy*1.3+s*9)+7*Math.sin((hh-9)/24*2*Math.PI)).toFixed(1));H.weather_code.push(code);H.precipitation_probability.push(code>=45?40+Math.round(s*50):Math.round(s*15));H.visibility.push(code==45?800:9000+s*8000);H.uv_index.push(Math.max(0,+(8*Math.sin((hh-6)/12*Math.PI)).toFixed(1)));H.is_day.push(+(hh>=6&&hh<19))}
+ for(let dy=0;dy<7;dy++){const t=H.temperature_2m.slice(dy*24,dy*24+24),dd=new Date(D0.getTime()+dy*864e5);Dd.time.push(iso(dd).slice(0,10));Dd.weather_code.push(H.weather_code[dy*24+14]);Dd.temperature_2m_max.push(Math.max(...t));Dd.temperature_2m_min.push(Math.min(...t));Dd.sunrise.push(iso(new Date(dd.getTime()+6.5*36e5)));Dd.sunset.push(iso(new Date(dd.getTime()+19.25*36e5)))}
+ return{aqi:Math.round(20+s*180),current:{time:iso(now),temperature_2m:H.temperature_2m[h],apparent_temperature:H.temperature_2m[h]-1.5,relative_humidity_2m:Math.round(40+s*45),weather_code:H.weather_code[h],wind_speed_10m:+(6+s*24).toFixed(1),wind_gusts_10m:+(14+s*45).toFixed(1),wind_direction_10m:Math.round(s*360),surface_pressure:Math.round(1000+s*25),is_day:H.is_day[h]},hourly:H,daily:Dd};
+}
+function cu(el,to){const f=+el.textContent||0,t0=performance.now();(function s(t){const p=Math.min((t-t0)/900,1);el.textContent=Math.round(f+(to-f)*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(s)})(t0)}
+function moon(){const L=29.530589,p=(((Date.now()-Date.UTC(2000,0,6,18,14))/864e5)%L+L)%L/L,k=Math.round(p*8)%8;return['🌑🌒🌓🌔🌕🌖🌗🌘'.match(/./gu)[k],['Yeni Ay','Hilal','İlk Dördün','Şişkin Ay','Dolunay','Şişkin Ay','Son Dördün','Hilal'][k],Math.round((1-Math.cos(2*Math.PI*p))/2*100)]}
+
+async function load(lat,lon,name){
+ const r=++RQ;toast('Veriler yükleniyor…',1500);let d,aqi,demo=0;
+ try{
+  const [w,a]=await Promise.all([
+   J(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,is_day&hourly=temperature_2m,weather_code,precipitation_probability,visibility,uv_index,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto&forecast_days=7`),
+   J(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi`).catch(()=>null)]);
+  d=w;aqi=a?.current?.us_aqi??45;
+ }catch(e){d=mock(name,lat,lon);aqi=d.aqi;demo=1}
+ if(!name){try{const g=await J(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=tr`);name=g.city||g.locality||g.principalSubdivision}catch(e){}name=name||'Seçilen Konum'}
+ if(r!=RQ)return;
+ render(name,d,aqi,lat,lon,demo);
+ if(demo)toast('Demo modu: canlı veriye ulaşılamadı, simülasyon verisi gösteriliyor.',4500);
+}
+
+function render(n,d,aqi,lat,lon,demo){
+ const c=d.current,H=d.hourly,D=d.daily,i=Math.max(0,H.time.findIndex(t=>t.slice(0,13)==c.time.slice(0,13))),day=!!c.is_day,W=wxo(c.weather_code,day),
+ t=c.temperature_2m,fl=c.apparent_temperature,rh=c.relative_humidity_2m,hi=D.temperature_2m_max[0],lo=D.temperature_2m_min[0],uv=+(H.uv_index[i]||0),vis=(H.visibility[i]??10000)/1000,wd=c.wind_direction_10m,ws=c.wind_speed_10m,gs=c.wind_gusts_10m??ws,
+ gm=Math.log(rh/100)+17.62*t/(243.12+t),dew=243.12*gm/(17.62-gm),[g,fxm]=TH[W.k+(day?'D':'N')],R=Math.round;
+ S={n,lat,lon,c,W,hi,lo,aqi,uv,gs};setBg(g);seed(fxm);
+ document.querySelectorAll('.rise').forEach(e=>{e.style.animation='none';e.offsetWidth;e.style.animation=''});
+ E.city.textContent=n;E.demo.hidden=!demo;
+ E.date.textContent=new Date(c.time).toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long'})+', '+c.time.slice(11,16);
+ cu(E.temp,R(t));E.cond.textContent=W.t;E.ico.textContent=W.i;E.feelh.textContent=R(fl);E.hi.textContent=R(hi);E.lo.textContent=R(lo);
+ /* Saatlik şerit */
+ E.hr.innerHTML=H.time.slice(i,i+24).map((x,k)=>{const j=i+k,w=wxo(H.weather_code[j],H.is_day[j]);return`<div class="snap-start shrink-0 w-[4.3rem] text-center py-3 rounded-3xl bg-white/10 border border-white/15"><div class="text-xs opacity-75">${k?x.slice(11,16):'Şimdi'}</div><div class="text-2xl my-1">${w.i}</div><div class="font-semibold">${R(H.temperature_2m[j])}°</div><div class="text-[11px] text-sky-200">💧${H.precipitation_probability[j]??0}%</div></div>`}).join('');
+ /* Günlük */
+ const mx=Math.max(...D.temperature_2m_max),mn=Math.min(...D.temperature_2m_min),sp=mx-mn||1;
+ E.dl.innerHTML=D.time.map((x,k)=>{const a=D.temperature_2m_min[k],b=D.temperature_2m_max[k];return`<div class="flex items-center gap-3"><span class="w-14 text-sm">${k?new Date(x+'T12:00').toLocaleDateString('tr-TR',{weekday:'short'}):'Bugün'}</span><span class="text-2xl">${wxo(D.weather_code[k],1).i}</span><span class="w-8 text-right text-sm opacity-70">${R(a)}°</span><div class="flex-1 h-1.5 rounded bg-white/20 relative"><i class="absolute h-full rounded bg-gradient-to-r from-sky-300 to-amber-300" style="left:${(a-mn)/sp*100}%;width:${(b-a)/sp*100}%"></i></div><span class="w-8 text-sm font-semibold">${R(b)}°</span></div>`}).join('');
+ /* AQI ve UV */
+ const aa=aqi<=50?['İyi','Hava temiz, dışarıda vakit geçirebilirsin.']:aqi<=100?['Orta','Hassas kişiler uzun süreli dış mekan eforunu azaltmalı.']:aqi<=150?['Hassas gruplar için sağlıksız','Astım ve kalp hastaları dışarıda uzun kalmamalı.']:aqi<=200?['Sağlıksız','Herkes yoğun dış mekan eforundan kaçınmalı.']:aqi<=300?['Çok sağlıksız','Dışarı çıkmayı sınırla, maske tak.']:['Tehlikeli','Dışarı çıkma, pencereleri kapalı tut.'];
+ E.aq.textContent=R(aqi);E.aqt.textContent=aa[0];E.aqa.textContent=aa[1];E.aqm.style.left=Math.min(aqi/300,1)*100+'%';
+ const ua=uv<3?['Düşük','Koruma gerekmez.']:uv<6?['Orta','Öğle saatlerinde güneş kremi sür.']:uv<8?['Yüksek','Gölge ara, krem ve şapka kullan.']:uv<11?['Çok yüksek','10 ile 16 arası güneşten kaçın.']:['Aşırı','Dışarı çıkarsan tam korunma şart.'];
+ E.uv.textContent=uv.toFixed(1);E.uvt.textContent=ua[0];E.uva.textContent=ua[1];E.uvm.style.left=Math.min(uv/12,1)*100+'%';
+ /* Rüzgar */
+ E.wsp.textContent=R(ws);E.gst.textContent=R(gs);E.wdr.textContent=['Kuzey','Kuzeydoğu','Doğu','Güneydoğu','Güney','Güneybatı','Batı','Kuzeybatı'][R(wd/45)%8]+', '+R(wd)+'°';E.nd.style.transform=`rotate(${wd+180}deg)`;
+ E.wst.textContent=gs>=60||c.weather_code>=95?'⚠️ Fırtına riski':gs<12?'Hafif esinti':gs<29?'Orta rüzgar':gs<50?'Kuvvetli rüzgar':'Çok kuvvetli rüzgar';
+ /* Güneş ve Ay yayı */
+ const sr=D.sunrise[0],ss=D.sunset[0],p=Math.max(0,Math.min(1,(new Date(c.time)-new Date(sr))/(new Date(ss)-new Date(sr)))),mo=moon();
+ E.sr.textContent=sr.slice(11,16);E.ss.textContent=ss.slice(11,16);E.arc.setAttribute('stroke-dasharray',p*100+' 100');
+ E.sun.setAttribute('cx',100-90*Math.cos(Math.PI*p));E.sun.setAttribute('cy',100-90*Math.sin(Math.PI*p));E.sun.setAttribute('fill',day?'#fde68a':'#cbd5e1');
+ E.moon.textContent=`${mo[0]} ${mo[1]}, %${mo[2]}`;
+ /* Küçük kartlar */
+ const T=(k,v,x)=>{E[k].textContent=v;E[k+'t'].textContent=x};
+ T('hum',rh+'%',rh<30?'Kuru':rh<60?'Konforlu':'Nemli');
+ T('feel',R(fl)+'°',Math.abs(fl-t)<2?'Gerçek sıcaklığa yakın':fl<t?'Daha serin hissediliyor':'Daha sıcak hissediliyor');
+ T('vis',vis.toFixed(1)+' km',vis>=10?'Mükemmel':vis>=5?'İyi':vis>=2?'Orta':'Düşük');
+ T('prs',R(c.surface_pressure)+' hPa',c.surface_pressure<1000?'Düşük':c.surface_pressure>1025?'Yüksek':'Normal');
+ T('dew',R(dew)+'°',dew<10?'Kuru':dew<16?'Rahat':dew<21?'Nemli':'Bunaltıcı');
+ chart(H,i);focus(lat,lon,t,n);drawFavs();layers();
+}
+
+function chart(H,i){
+ const lb=H.time.slice(i,i+24).map(t=>t.slice(11,16)),v=H.temperature_2m.slice(i,i+24).map(x=>Math.round(x)),ctx=E.ch.getContext('2d'),g=ctx.createLinearGradient(0,0,0,224);
+ g.addColorStop(0,'rgba(255,255,255,.55)');g.addColorStop(1,'rgba(255,255,255,0)');
+ if(CH)CH.destroy();
+ CH=new Chart(ctx,{type:'line',data:{labels:lb,datasets:[{data:v,borderColor:'#fff',backgroundColor:g,fill:true,tension:.45,borderWidth:3,pointRadius:0,pointHoverRadius:7,pointHoverBackgroundColor:'#fff'}]},
+ options:{maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{display:false},tooltip:{displayColors:false,backgroundColor:'rgba(0,0,0,.65)',callbacks:{label:c=>c.parsed.y+'°C'}}},
+ scales:{x:{grid:{display:false},ticks:{color:'rgba(255,255,255,.75)',maxTicksLimit:8}},y:{grid:{color:'rgba(255,255,255,.1)'},ticks:{color:'rgba(255,255,255,.75)',callback:v=>v+'°'}}}}});
+}
+
+/* Harita, radar katmanları, rüzgar akışı */
+const wc=E.wc,wx=wc.getContext('2d');let WP=[],WON=0;
+const rsM=()=>{M.invalidateSize();wc.width=E.map.clientWidth;wc.height=E.map.clientHeight};
+const windOn=on=>{WON=on;wx.clearRect(0,0,wc.width,wc.height);if(on&&!WP.length)WP=Array.from({length:280},()=>({x:Math.random()*wc.width,y:Math.random()*wc.height,a:Math.random()*90}))};
+(function wl(){
+ if(WON&&GR){
+  wx.globalCompositeOperation='destination-out';wx.fillStyle='rgba(0,0,0,.07)';wx.fillRect(0,0,wc.width,wc.height);wx.globalCompositeOperation='source-over';
+  const pts=GR.la.map((la,i)=>({p:M.latLngToContainerPoint([la,GR.lo[i]]),ws:GR.ws[i],r:(GR.wd[i]+180)*Math.PI/180}));
+  wx.strokeStyle='rgba(255,255,255,.8)';wx.lineWidth=1.4;
+  for(const q of WP){let sx=0,sy=0,sw=0;
+   for(const o of pts){const d=Math.hypot(q.x-o.p.x,q.y-o.p.y)+30,w=1/(d*d);sx+=Math.sin(o.r)*o.ws*w;sy-=Math.cos(o.r)*o.ws*w;sw+=w}
+   wx.beginPath();wx.moveTo(q.x,q.y);q.x+=sx/sw*.12;q.y+=sy/sw*.12;wx.lineTo(q.x,q.y);wx.stroke();
+   if(++q.a>90||q.x<0||q.y<0||q.x>wc.width||q.y>wc.height){q.x=Math.random()*wc.width;q.y=Math.random()*wc.height;q.a=0}}
+ }
+ requestAnimationFrame(wl)})();
+function initMap(){
+ M=L.map(E.map,{zoomControl:false}).setView([39,35],5);
+ L.control.zoom({position:'bottomright'}).addTo(M);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {maxZoom: 16, attribution: 'Esri'}).addTo(M);
+ M.on('click',e=>load(e.latlng.lat,e.latlng.lng));M.on('resize',()=>{wc.width=E.map.clientWidth;wc.height=E.map.clientHeight});
+ setTimeout(rsM,1000);
+}
+function focus(lat,lon,t,n){
+ M.flyTo([lat,lon],6,{duration:1.8});
+ if(!MK)MK=L.marker([lat,lon],{icon:L.divIcon({className:'',html:'<div class="pin"><i></i></div>',iconSize:[34,34],iconAnchor:[17,17]})}).addTo(M);else MK.setLatLng([lat,lon]);
+ MK.unbindTooltip();MK.bindTooltip(`${esc(n)}, ${Math.round(t)}°`,{permanent:true,direction:'top',offset:[0,-16],className:'tt'});
+}
+async function layers(){
+ LG.clearLayers();if(RL){M.removeLayer(RL);RL=null}windOn(0);
+ const m=ML,{lat,lon,c}=S,k=lat+','+lon;
+ if(!GR||GR.k!=k){
+  const la=[],lo=[];for(const a of[-3,-1,1,3])for(const b of[-4,-1.3,1.3,4]){la.push(+(lat+a).toFixed(2));lo.push(+(lon+b).toFixed(2))}
+  try{const r=await J(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,wind_speed_10m,wind_direction_10m`);GR={k,la,lo,t:r.map(x=>x.current.temperature_2m),ws:r.map(x=>x.current.wind_speed_10m),wd:r.map(x=>x.current.wind_direction_10m)}}
+  catch(e){GR={k,la,lo,t:la.map((_,i)=>c.temperature_2m+Math.sin(i*2.3)*3),ws:la.map((_,i)=>8+i%5*4),wd:la.map((_,i)=>(c.wind_direction_10m+i*23)%360)}}
+ }
+ if(m!=ML||k!=S.lat+','+S.lon)return;
+ const key=KEY();
+ if(key)RL=L.tileLayer(`https://tile.openweathermap.org/map/${{temp:'temp_new',rain:'precipitation_new',wind:'wind_new'}[m]}/{z}/{x}/{y}.png?appid=${key}`,{opacity:.7}).addTo(M);
+ if(m=='temp')GR.t.forEach((t,i)=>{const col=`hsl(${240-Math.max(0,Math.min(1,(t+10)/50))*240} 85% 55%)`;
+  L.circleMarker([GR.la[i],GR.lo[i]],{radius:30,stroke:false,fillColor:col,fillOpacity:.28}).addTo(LG);
+  L.marker([GR.la[i],GR.lo[i]],{icon:L.divIcon({className:'',html:`<div class="tp" style="border-color:${col}">${Math.round(t)}°</div>`,iconSize:[44,26],iconAnchor:[22,13]}),interactive:false}).addTo(LG)});
+ else if(m=='wind')windOn(1);
+ else if(!key){try{const r=await J('https://api.rainviewer.com/public/weather-maps.json');if(m!=ML)return;RL=L.tileLayer(`${r.host}${r.radar.past.at(-1).path}/256/{z}/{x}/{y}/2/1_1.png`,{opacity:.75,maxNativeZoom:7}).addTo(M)}catch(e){toast('Radar katmanı yüklenemedi.')}}
+}
+const MB={temp:E.bt,rain:E.br,wind:E.bw};
+Object.entries(MB).forEach(([m,b])=>b.onclick=()=>{ML=m;for(const x in MB)MB[x].classList.toggle('on',x==m);if(S)layers()});
+E.key.value=KEY();
+E.key.onchange=()=>{const v=E.key.value.trim();try{localStorage.setItem('aura_owm',v)}catch(e){}toast(v?'Anahtar kaydedildi, katmanlar OpenWeatherMap ile güncelleniyor.':'Anahtar silindi.');if(S)layers()};
+
+/* Favoriler, GPS, arama, sesli özet */
+function drawFavs(){
+ E.favs.innerHTML=FV.map((f,i)=>`<span class="btn !py-1.5 inline-flex gap-2 items-center"><b data-g="${i}" class="font-medium">${esc(f.n.split(',')[0])}</b><b data-x="${i}" class="opacity-60 hover:opacity-100" title="Kaldır">✕</b></span>`).join('')||'<span class="text-sm opacity-60 py-2">Favori düğmesiyle şehirleri buraya ekleyebilirsin.</span>';
+ E.fav.textContent=S&&FV.some(f=>f.n==S.n)?'★ Favori':'☆ Favori';
+}
+E.favs.onclick=e=>{const g=e.target.dataset.g,x=e.target.dataset.x;if(g!=null){const f=FV[g];load(f.lat,f.lon,f.n)}else if(x!=null){FV.splice(x,1);sv();drawFavs()}};
+E.fav.onclick=()=>{if(!S)return;const i=FV.findIndex(f=>f.n==S.n);if(i<0)FV.push({n:S.n,lat:S.lat,lon:S.lon});else FV.splice(i,1);sv();drawFavs()};
+E.gps.onclick=()=>{if(!navigator.geolocation)return toast('Tarayıcı konum özelliğini desteklemiyor.');toast('Konum alınıyor…');navigator.geolocation.getCurrentPosition(p=>load(p.coords.latitude,p.coords.longitude),()=>toast('Konum alınamadı. Tarayıcıda konum iznini aç.'),{timeout:10000})};
+E.q.addEventListener('keydown',async e=>{
+ if(e.key!='Enter'||!E.q.value.trim())return;const s=E.q.value.trim();
+ try{const r=await J(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(s)}&count=1&language=tr`),g=r.results?.[0];
+  if(!g)return toast('Şehir bulunamadı. Başka bir yazım dene.');
+  load(g.latitude,g.longitude,g.name+(g.country?', '+g.country:''))}
+ catch(err){load(41.01,28.97,s)}
+ E.q.blur();
+});
+E.tts.onclick=()=>{
+ if(!('speechSynthesis' in window))return toast('Tarayıcı sesli okumayı desteklemiyor.');
+ if(speechSynthesis.speaking){speechSynthesis.cancel();return}
+ if(!S)return;const c=S.c,R=Math.round,
+ u=new SpeechSynthesisUtterance(`${S.n} için hava durumu. ${S.W.t}. Sıcaklık ${R(c.temperature_2m)} derece, hissedilen ${R(c.apparent_temperature)} derece. Nem yüzde ${c.relative_humidity_2m}. Rüzgar saatte ${R(c.wind_speed_10m)} kilometre, hamleler ${R(S.gs)} kilometreye ulaşıyor. Hava kalitesi indeksi ${R(S.aqi)}, UV indeksi ${S.uv.toFixed(0)}. Bugün en yüksek ${R(S.hi)}, en düşük ${R(S.lo)} derece.`);
+ u.lang='tr-TR';u.rate=.95;const v=speechSynthesis.getVoices().find(v=>v.lang.startsWith('tr'));if(v)u.voice=v;speechSynthesis.speak(u);
+};
+initMap();drawFavs();load(41.0082,28.9784,'İstanbul, Türkiye');
+</script>
+</body>
+</html>
