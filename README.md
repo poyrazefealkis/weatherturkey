@@ -1,5 +1,7 @@
 🌦️ Weather Turkey v0.11 yayında!
 
+3 Kasım 2026🎉
+
 Bu güncellemede hem telefondaki sorunları düzelttik hem de siteyi çok daha sade ve okunaklı hale getirdik. İşte yenilikler:
 
 📱 Telefonda taşma düzeltildi
